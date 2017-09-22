@@ -37,10 +37,46 @@ window.App = {
    event.preventDefault();
 
 });
+  $("#bidding").submit(function(event) {
+   $("#msg").hide();
+   let amount = $("#bid-amount").val();
+   let sendAmount = $("#bid-send-amount").val();
+   let secretText = $("#secret-text").val();
+   let sealedBid = '0x' + ethUtil.sha3(web3.toWei(amount, 'ether') + secretText).toString('hex');
+   let productId = $("#product-id").val();
+   console.log(sealedBid + " for " + productId);
+   EcommerceStore.deployed().then(function(i) {
+    i.bid(parseInt(productId), sealedBid, {value: web3.toWei(sendAmount), from: web3.eth.accounts[1], gas: 440000}).then(
+     function(f) {
+      $("#msg").html("Your bid has been successfully submitted!");
+      $("#msg").show();
+      console.log(f)
+     }
+    )
+   });
+   event.preventDefault();
+});
+
+$("#revealing").submit(function(event) {
+   $("#msg").hide();
+   let amount = $("#actual-amount").val();
+   let secretText = $("#reveal-secret-text").val();
+   let productId = $("#product-id").val();
+   EcommerceStore.deployed().then(function(i) {
+    i.revealBid(parseInt(productId), web3.toWei(amount).toString(), secretText, {from: web3.eth.accounts[1], gas: 440000}).then(
+     function(f) {
+      $("#msg").show();
+      $("#msg").html("Your bid has been successfully revealed!");
+      console.log(f)
+     }
+    )
+   });
+   event.preventDefault();
+});
  
      if($("#product-details").length > 0) {
    //This is product details page
-   console.log("Search Params = " + new URLSearchParams(window.location))
+   //console.log("Search Params = " + new URLSearchParams(window.location))
    let productId = new URLSearchParams(window.location.search).get('Id');
    renderProductDetails(productId);
   } 
@@ -150,7 +186,7 @@ function saveProductToBlockchain(params, imageId, descId) {
 
 function renderProductDetails(productId) {
 	if (productId) {
-		console.log("In renderProductDetails, have id of: " + productId);
+		//console.log("In renderProductDetails, have id of: " + productId);
 		EcommerceStore.deployed().then(function(i) {
 		  i.getProduct.call(productId).then(function(p) {
 		   console.log(p);
@@ -172,6 +208,7 @@ function renderProductDetails(productId) {
 		   let currentTime = getCurrentTimeInSeconds();
 		   if(currentTime < p[6]) {
 		    $("#bidding").show();
+        $("#revealing").show();
 		   } else if (currentTime - (60) < p[6]) {
 		    $("#revealing").show();
 		   }
@@ -219,3 +256,4 @@ function displayEndHours(seconds) {
   return "Auction ends in " + remaining_seconds + " seconds";
  }
 }
+
