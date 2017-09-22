@@ -37,6 +37,25 @@ window.App = {
    event.preventDefault();
 
 });
+  $("#finalize-auction").submit(function(event) {
+   $("#msg").hide();
+   let productId = $("#product-id").val();
+   EcommerceStore.deployed().then(function(i) {
+    i.finalizeAuction(parseInt(productId), {from: web3.eth.accounts[2], gas: 4400000}).then(
+     function(f) {
+      $("#msg").show();
+      $("#msg").html("The auction has been finalized and winner declared.");
+      console.log(f)
+      location.reload();
+     }
+    ).catch(function(e) {
+     console.log(e);
+     $("#msg").show();
+     $("#msg").html("The auction can not be finalized by the buyer or seller, only a third party aribiter can finalize it");
+    })
+   });
+   event.preventDefault();
+});
   $("#bidding").submit(function(event) {
    $("#msg").hide();
    let amount = $("#bid-amount").val();
@@ -44,9 +63,10 @@ window.App = {
    let secretText = $("#secret-text").val();
    let sealedBid = '0x' + ethUtil.sha3(web3.toWei(amount, 'ether') + secretText).toString('hex');
    let productId = $("#product-id").val();
-   console.log(sealedBid + " for " + productId);
+   let userNumber = $("#user-number").val();
+   console.log(sealedBid + " for " + productId + " from user: " + userNumber);
    EcommerceStore.deployed().then(function(i) {
-    i.bid(parseInt(productId), sealedBid, {value: web3.toWei(sendAmount), from: web3.eth.accounts[1], gas: 440000}).then(
+    i.bid(parseInt(productId), sealedBid, {value: web3.toWei(sendAmount), from: web3.eth.accounts[userNumber], gas: 440000}).then(
      function(f) {
       $("#msg").html("Your bid has been successfully submitted!");
       $("#msg").show();
@@ -55,15 +75,56 @@ window.App = {
     )
    });
    event.preventDefault();
+
 });
+     let elmo = function(me) {
+    console.log("Doing BidCast");
+    var self = me;
+    EcommerceStore.deployed().then(function(i){i.bidCast().watch(function(error, result){
+      console.log("In bidCast response.");
+      if (error) {
+        console.log(error);
+      } else {
+        for (var key in result) {
+          if (result.hasOwnProperty(key)) {
+            if (key !== "args") {
+               // console.log(key + " : " + result[key]);
+            } else {
+              let args = result["args"];
+              var message = "";
+              for (var arg in args) {
+
+                if (args.hasOwnProperty(arg)) {
+                  var outcome = args[arg];
+                  if (arg === 'value') {
+                    outcome = web3.fromWei(outcome, 'ether');
+                  }
+                  message = message + " " + arg + ": " + outcome +  "   ";
+                  //console.log("arg.. " + arg + ": " + outcome);
+                }
+
+              }
+              $("#msg2").show();
+              $("#msg2").html(message);
+            }
+            
+          }
+        }
+      }
+    })});
+    
+   };
+   elmo(this);
+   
 
 $("#revealing").submit(function(event) {
    $("#msg").hide();
    let amount = $("#actual-amount").val();
    let secretText = $("#reveal-secret-text").val();
    let productId = $("#product-id").val();
+   let userNumber = $("#reveal-user-number").val();
    EcommerceStore.deployed().then(function(i) {
-    i.revealBid(parseInt(productId), web3.toWei(amount).toString(), secretText, {from: web3.eth.accounts[1], gas: 440000}).then(
+    i.revealBid(parseInt(productId), web3.toWei(amount).toString(), secretText, {from: web3.eth.accounts[userNumber], gas: 440000}).then(
      function(f) {
       $("#msg").show();
       $("#msg").html("Your bid has been successfully revealed!");
@@ -113,6 +174,11 @@ function saveTextBlobOnIpfs(blob) {
 }
 
 function renderStore() {
+  EcommerceStore.deployed().then(function(i){
+    i.numberOfItems.call().then(function(i){
+      console.log("Number Of Items: " + i);
+    });
+  }).catch(function(error){console.log(error)});
  EcommerceStore.deployed().then(function(i) {
   var id = 1;
   i.getProduct.call(id).then(function(p) {
@@ -122,13 +188,13 @@ function renderStore() {
   i.getProduct.call(id).then(function(p) {
    $("#product-list").append(buildProduct(p, 2));
   });
-  id = 7;
+  id = 9;
   let goober = function(id) {
     return function(p) {
       $("#product-list").append(buildProduct(p, id));
     }
   }
-  let g = goober(7)
+  let g = goober(id);
   i.getProduct.call(id).then(g);
 
 
@@ -141,8 +207,8 @@ function buildProduct(product, id) {
  node.append("<img src='https://ipfs.io/ipfs/" + product[3] + "' width='150px' />");
  node.append("<div>" + product[1]+ "</div>");
  node.append("<div>" + product[2]+ "</div>");
- node.append("<div>" + product[5]+ "</div>");
- node.append("<div>" + product[6]+ "</div>");
+ node.append("<div>" + new Date(product[5] * 1000) + "</div>");
+ node.append("<div>" + new Date(product[6] * 1000) + "</div>");
  node.append("<div>Ether " + product[7] + "</div>");
  node.append("<a href='product.html?Id=" + id + "'class='btn btn-primary'>Show</a>")
  return node;
@@ -193,37 +259,65 @@ function saveProductToBlockchain(params, imageId, descId) {
 }
 
 function renderProductDetails(productId) {
-	if (productId) {
-		//console.log("In renderProductDetails, have id of: " + productId);
-		EcommerceStore.deployed().then(function(i) {
-		  i.getProduct.call(productId).then(function(p) {
-		   console.log(p);
-		   let content = "";
-		   ipfs.cat(p[4]).then(function(stream) {
-		    stream.on('data', function(chunk) {
-		    // do stuff with this chunk of data
-		    content += chunk.toString();
-		    $("#product-desc").append("<div>" + content+ "</div>");
-		    })
-		   });
+ EcommerceStore.deployed().then(function(i) {
+  i.getProduct.call(productId).then(function(p) {
+   console.log(p);
+   let content = "";
+   ipfs.cat(p[4]).then(function(stream) {
+    stream.on('data', function(chunk) {
+    // do stuff with this chunk of data
+    content += chunk.toString();
+    $("#product-desc").append("<div>" + content+ "</div>");
+      })
+    });
 
-		   $("#product-image").append("<img src='https://ipfs.io/ipfs/" + p[3] + "' width='250px' />");
-		   $("#product-price").html(displayPrice(p[7]));
-		   $("#product-name").html(p[1].name);
-		   $("#product-auction-end").html(displayEndHours(p[6]));
-		   $("#product-id").val(p[0]);
-		   $("#revealing, #bidding").hide();
-		   let currentTime = getCurrentTimeInSeconds();
-		   if(currentTime < p[6]) {
-		    $("#bidding").show();
-		   } else if (currentTime - (60) < p[6]) {
-		    $("#revealing").show();
-		   }
-		  })
-		})
-	} else {
-		console.log("No productId");
-	}
+   $("#product-image").append("<img src='https://ipfs.io/ipfs/" + p[3] + "' width='250px' />");
+   $("#product-price").html(displayPrice(p[7]));
+   $("#product-name").html(p[1].name);
+   $("#product-auction-end").html(displayEndHours(p[6]));
+   $("#product-id").val(p[0]);
+   $("#revealing, #bidding, #finalize-auction, #escrow-info").hide();
+   let currentTime = getCurrentTimeInSeconds();
+   if (parseInt(p[8]) == 1) {
+     $("#product-status").html("Product sold");
+   } else if(parseInt(p[8]) == 2) {
+     $("#product-status").html("Product was not sold");
+   } else if(currentTime < parseInt(p[6])) {
+    $("#bidding").show();
+   } else if (currentTime < (parseInt(p[6]) + 600)) {
+    $("#revealing").show();
+   } else {
+    $("#finalize-auction").show();
+   }
+   if (p.productStatus == 1){
+   EcommerceStore.deployed().then(function(i) {
+    $("#escrow-info").show();
+    i.highestBidderInfo.call(productId).then(function(f) {
+     if (f[2].toLocaleString() == '0') {
+      $("#product-status").html("Auction has ended. No bids were revealed");
+     } else {
+      $("#product-status").html("Auction has ended. Product sold to " + f[0] + " for " + displayPrice(f[2]) +
+       "The money is in the escrow. Two of the three participants (Buyer, Seller and Arbiter) have to " +
+       "either release the funds to seller or refund the money to the buyer");
+     }
+    })
+    i.escrowInfo.call(productId).then(function(f) {
+     $("#buyer").html('Buyer: ' + f[0]);
+     $("#seller").html('Seller: ' + f[1]);
+     $("#arbiter").html('Arbiter: ' + f[2]);
+     if(f[3] == true) {
+      $("#release-count").html("Amount from the escrow has been released");
+     } else {
+      $("#release-count").html(f[4] + " of 3 participants have agreed to release funds");
+      $("#refund-count").html(f[5] + " of 3 participants have agreed to refund the buyer");
+     }
+    })
+   })
+  }
+
+
+  })
+ })
 }
 
 

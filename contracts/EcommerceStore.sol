@@ -1,5 +1,5 @@
 pragma solidity ^0.4.13;
-
+import "contracts/Escrow.sol";
 contract EcommerceStore {
  enum ProductStatus { Open, Sold, Unsold }
  enum ProductCondition { New, Used }
@@ -7,6 +7,7 @@ contract EcommerceStore {
  uint public productIndex;
  mapping (address => mapping(uint => Product)) stores;
  mapping (uint => address) productIdInStore;
+ mapping (uint => address) productEscrow;
 
  struct Product {
   uint id;
@@ -127,4 +128,44 @@ function stringToUint(string s) constant returns (uint) {
   return (product.id, product.name, product.category, product.imageLink, product.descLink, product.auctionStartTime,
       product.auctionEndTime, product.startPrice, product.status, product.condition);
   }
+
+  function finalizeAuction(uint _productId) {
+  Product memory product = stores[productIdInStore[_productId]][_productId];
+  // 48 hours to reveal the bid
+  require(now > product.auctionEndTime);
+  require(product.status == ProductStatus.Open);
+  require(product.highestBidder != msg.sender);
+  require(productIdInStore[_productId] != msg.sender);
+
+  if (product.totalBids == 0) {
+   product.status = ProductStatus.Unsold;
+  } else {
+   // Whoever finalizes the auction is the arbiter
+   Escrow escrow = (new Escrow).value(product.secondHighestBid)(_productId, product.highestBidder, productIdInStore[_productId], msg.sender);
+   productEscrow[_productId] = address(escrow);
+   product.status = ProductStatus.Sold;
+   // The bidder only pays the amount equivalent to second highest bidder
+   // Refund the difference
+   uint refund = product.highestBid - product.secondHighestBid;
+   product.highestBidder.transfer(refund);
+
+  }
+ }
+  function escrowAddressForProduct(uint _productId) returns (address) {
+  return productEscrow[_productId];
+ }
+
+ function escrowInfo(uint _productId) returns (address, address, address, bool, uint, uint) {
+  return Escrow(productEscrow[_productId]).escrowInfo();
+}
+
+function releaseAmountToSeller(uint _productId) {
+  Escrow(productEscrow[_productId]).releaseAmountToSeller(msg.sender);
+}
+
+function refundAmountToBuyer(uint _productId) {
+  Escrow(productEscrow[_productId]).refundAmountToBuyer(msg.sender);
+}
+
+
 }
