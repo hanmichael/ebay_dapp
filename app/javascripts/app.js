@@ -114,21 +114,28 @@ function saveTextBlobOnIpfs(blob) {
 
 function renderStore() {
  EcommerceStore.deployed().then(function(i) {
-  i.getProduct.call(1).then(function(p) {
-   $("#product-list").append(buildProduct(p));
+  var id = 1;
+  i.getProduct.call(id).then(function(p) {
+   $("#product-list").append(buildProduct(p, 1));
   });
-  i.getProduct.call(2).then(function(p) {
-   $("#product-list").append(buildProduct(p));
+  id = 2;
+  i.getProduct.call(id).then(function(p) {
+   $("#product-list").append(buildProduct(p, 2));
   });
-  i.getProduct.call(7).then(function(p) {
-   $("#product-list").append(buildProduct(p));
-  });
+  id = 7;
+  let goober = function(id) {
+    return function(p) {
+      $("#product-list").append(buildProduct(p, id));
+    }
+  }
+  let g = goober(7)
+  i.getProduct.call(id).then(g);
 
 
  });
 }
 
-function buildProduct(product) {
+function buildProduct(product, id) {
  let node = $("<div/>");
  node.addClass("col-sm-3 text-center col-margin-bottom-1");
  node.append("<img src='https://ipfs.io/ipfs/" + product[3] + "' width='150px' />");
@@ -137,6 +144,7 @@ function buildProduct(product) {
  node.append("<div>" + product[5]+ "</div>");
  node.append("<div>" + product[6]+ "</div>");
  node.append("<div>Ether " + product[7] + "</div>");
+ node.append("<a href='product.html?Id=" + id + "'class='btn btn-primary'>Show</a>")
  return node;
 };
 window.addEventListener('load', function() {
@@ -208,7 +216,6 @@ function renderProductDetails(productId) {
 		   let currentTime = getCurrentTimeInSeconds();
 		   if(currentTime < p[6]) {
 		    $("#bidding").show();
-        $("#revealing").show();
 		   } else if (currentTime - (60) < p[6]) {
 		    $("#revealing").show();
 		   }
