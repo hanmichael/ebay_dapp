@@ -44,6 +44,8 @@ contract EcommerceStore {
   // bidCast(msg.sender, 1, 2);
   return true;
  }
+  event NewProduct(uint _productId, string _name, string _category, string _imageLink, string _descLink,
+  uint _auctionStartTime, uint _auctionEndTime, uint _startPrice, uint _productCondition);
 function bid(uint _productId, bytes32 _bid) payable returns (bool) {
   Product storage product = stores[productIdInStore[_productId]][_productId];
   require (now >= product.auctionStartTime);
@@ -122,6 +124,7 @@ function stringToUint(string s) constant returns (uint) {
   Product memory product = Product(productIndex, _name, _category, _imageLink, _descLink, _auctionStartTime, _auctionEndTime, _startPrice, 0, 0, 0, 0, ProductStatus.Open, ProductCondition(_productCondition));
   stores[msg.sender][productIndex] = product;
   productIdInStore[productIndex] = msg.sender;
+  NewProduct(productIndex, _name, _category, _imageLink, _descLink, _auctionStartTime, _auctionEndTime, _startPrice, _productCondition);
  }
  function getProduct(uint _productId) returns (uint, string, string, string, string, uint, uint, uint, ProductStatus, ProductCondition) {
   Product memory product = stores[productIdInStore[_productId]][_productId];
